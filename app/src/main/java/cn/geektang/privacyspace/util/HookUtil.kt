@@ -1,7 +1,7 @@
 package cn.geektang.privacyspace.util
 
 object HookUtil {
-    private val pmsClassNameArray = arrayOf(
+    val pmsClassNameArray = arrayOf(
         "com.android.server.pm.PackageManagerService",
         "com.android.server.pm.OplusPackageManagerService",
         "com.android.server.pm.OppoPackageManagerService"

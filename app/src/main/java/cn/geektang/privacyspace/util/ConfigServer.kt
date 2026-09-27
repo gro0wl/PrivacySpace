@@ -76,54 +76,49 @@ class ConfigServer : XC_MethodHook() {
     }
 
     /**
-     * Old IPC channel (Android 8-11): PMS#getInstallerPackageName(String).
-     * On Android 12+ the method is gone and the client call is routed to
-     * getInstallSourceInfo() instead, so both must be hooked.
+     * IPC channel hooks. Old API (Android 8-11): PMS#getInstallerPackageName(String).
+     * On Android 12+ that method is gone and PackageManager#getInstallerPackageName()
+     * is routed to getInstallSourceInfo() instead, so both names must be hooked.
+     * PMS was heavily refactored on 12+ (methods moved between base/OEM subclasses),
+     * so every loadable PMS class and its superclasses are scanned.
      */
     private fun hookInstallerQueryMethods(pms: Class<*>) {
-        try {
-            XposedHelpers.findAndHookMethod(
-                pms,
-                "getInstallerPackageName",
-                String::class.java,
-                this
-            )
-        } catch (e: Throwable) {
-            XLog.d("getInstallerPackageName(String) not found, skipping: ${e.message}")
+        val hooked = mutableListOf<String>()
+        val candidates = mutableSetOf<Class<*>>()
+        candidates.add(pms)
+        for (name in HookUtil.pmsClassNameArray) {
+            classLoader.loadClassSafe(name)?.let { candidates.add(it) }
         }
-        try {
-            var hooked = false
-            for (method in pms.declaredMethods) {
-                if (method.name == "getInstallSourceInfo") {
-                    try {
-                        XposedBridge.hookMethod(method, this)
-                        hooked = true
-                    } catch (ignored: Throwable) {
+        for (candidate in candidates) {
+            var c: Class<*>? = candidate
+            while (c != null && c != Any::class.java) {
+                for (method in c.declaredMethods) {
+                    if (method.name == "getInstallerPackageName"
+                        || method.name == "getInstallSourceInfo"
+                    ) {
+                        try {
+                            XposedBridge.hookMethod(method, this)
+                            hooked.add("${c.name}#${method.name}(${method.parameterTypes.joinToString { it.simpleName }})")
+                        } catch (e: Throwable) {
+                            XLog.e(e, "Hook ${c.name}#${method.name} failed.")
+                        }
                     }
                 }
+                c = c.superclass
             }
-            if (!hooked) {
-                XposedHelpers.findAndHookMethod(
-                    pms,
-                    "getInstallSourceInfo",
-                    String::class.java,
-                    Int::class.javaPrimitiveType,
-                    this
-                )
-            }
-        } catch (e: Throwable) {
-            XLog.d("getInstallSourceInfo hook failed: ${e.message}")
         }
+        XLog.i("ConfigServer IPC hooks: ${if (hooked.isEmpty()) "NONE attached!" else hooked.joinToString()}")
     }
 
     /**
-     * New IPC channel (Android 12+): PMS#getInstallSourceInfo(String, int).
+     * New IPC channel (Android 12+): getInstallSourceInfo(String, ...).
      * The client still calls PackageManager#getInstallerPackageName(cmd), which
      * internally delegates to getInstallSourceInfo(cmd).getInstallingPackageName(),
      * so we answer with a synthetic InstallSourceInfo carrying our payload in
-     * installingPackageName. Built via reflection to stay compatible with
-     * API 30-34 constructor variants and to avoid referencing the class
-     * (added in API 30) on older releases.
+     * installingPackageName. The class is taken from the hooked method's return
+     * type (no Class.forName: the module classloader can't always see framework
+     * classes) and built via the (String, SigningInfo, String, String)
+     * constructor present on API 30-34.
      */
     private fun hookGetInstallSourceInfo(param: MethodHookParam) {
         val callingUid = Binder.getCallingUid()
@@ -133,8 +128,9 @@ class ConfigServer : XC_MethodHook() {
         }
         val firstArg = param.args.firstOrNull()?.toString() ?: return
         val payload = resolveServerPayload(firstArg) ?: return
-        val info = newInstallSourceInfo(payload) ?: return
+        val info = newInstallSourceInfo(payload, param.method.returnType) ?: return
         param.result = info
+        XLog.i("ConfigServer served '${firstArg.take(24)}' (${payload.length} chars).")
     }
 
     /** Returns the payload for our internal commands, or null for real packages. */
@@ -175,18 +171,30 @@ class ConfigServer : XC_MethodHook() {
         }
     }
 
-    private fun newInstallSourceInfo(installingPackageName: String): Any? {
+    private fun newInstallSourceInfo(
+        installingPackageName: String,
+        installSourceInfoClass: Class<*>
+    ): Any? {
         return try {
-            val clazz = Class.forName("android.content.pm.InstallSourceInfo")
-            val signingInfoClazz = Class.forName("android.content.pm.SigningInfo")
-            val ctor = clazz.getDeclaredConstructor(
-                String::class.java,
-                signingInfoClazz,
-                String::class.java,
-                String::class.java
-            )
-            ctor.isAccessible = true
-            ctor.newInstance(null, null, null, installingPackageName)
+            var target: java.lang.reflect.Constructor<*>? = null
+            for (ctor in installSourceInfoClass.declaredConstructors) {
+                val params = ctor.parameterTypes
+                if (params.size == 4
+                    && params[0] == String::class.java
+                    && params[2] == String::class.java
+                    && params[3] == String::class.java
+                    && params[1].name == "android.content.pm.SigningInfo"
+                ) {
+                    target = ctor
+                    break
+                }
+            }
+            if (target == null) {
+                XLog.e("InstallSourceInfo 4-arg constructor not found in ${installSourceInfoClass.name}.")
+                return null
+            }
+            target.isAccessible = true
+            target.newInstance(null, null, null, installingPackageName)
         } catch (e: Throwable) {
             XLog.e(e, "Create InstallSourceInfo failed.")
             null

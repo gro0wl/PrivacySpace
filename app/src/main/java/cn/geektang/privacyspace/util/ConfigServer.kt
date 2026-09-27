@@ -128,7 +128,9 @@ class ConfigServer : XC_MethodHook() {
         }
         val firstArg = param.args.firstOrNull()?.toString() ?: return
         val payload = resolveServerPayload(firstArg) ?: return
-        val info = newInstallSourceInfo(payload, param.method.returnType) ?: return
+        val returnType = (param.method as? java.lang.reflect.Method)?.returnType
+            ?: return
+        val info = newInstallSourceInfo(payload, returnType) ?: return
         param.result = info
         XLog.i("ConfigServer served '${firstArg.take(24)}' (${payload.length} chars).")
     }

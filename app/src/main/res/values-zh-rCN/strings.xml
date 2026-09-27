@@ -15,7 +15,7 @@
     <string name="uninstall">卸载</string>
     <string name="unhide">取消隐藏</string>
     <string name="launcher_notice">1、如已启用Magisk随机包名，请务必将其加入白名单，否则隐藏的应用将无法正确获取到Root权限\n2、从老版本升级后务必重启一次手机，否则功能将失效\n3、本页面图标长按可以设置\"关联应用\"，关联应用与被设置应用间互相可见\n4、Xposed模块会在添加后自动将其推荐的APP加入\"关联应用\"\n5、不建议隐藏系统应用，隐藏系统应用可能导致系统无法开机</string>
-    <string name="setting_up_for">正在为\'%s\'设置关联应用，关联应用与\'%s\'之间互相可见</string>
+    <string name="setting_up_for">正在为\'%1$s\'设置关联应用，关联应用与\'%1$s\'之间互相可见</string>
     <string name="current_app_version">查看当前版本</string>
     <string name="current_app_version_is">当前版本为：%s</string>
     <string name="view_update_info_coolapk">查看更新信息（酷安）</string>

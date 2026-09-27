@@ -15,7 +15,7 @@
     <string name="uninstall">解除安裝</string>
     <string name="unhide">取消隱藏</string>
     <string name="launcher_notice">1、如已啟用Magisk隨機包名，請務必將其加入白名單，否則隱藏的應用將無法正確獲取到 Root 許可權\n2、從老版本升級後務必重啟一次手機，否則功能將失效\n3、本頁面圖示長按可以設定\"關聯應用\"，關聯應用與被設定應用間互相可見\n4、Xposed 模組會在新增後自動將其推薦的 APP 加入\"關聯應用\"\n5、不建議隱藏系統應用，隱藏系統應用可能導致系統無法開機</string>
-    <string name="setting_up_for">正在為\'%s\'設定關聯應用，關聯應用與\'%s\'之間互相可見</string>
+    <string name="setting_up_for">正在為\'%1$s\'設定關聯應用，關聯應用與\'%1$s\'之間互相可見</string>
     <string name="current_app_version">檢視當前版本</string>
     <string name="current_app_version_is">當前版本為：%s</string>
     <string name="view_update_info_coolapk">檢視更新訊息（酷安）</string>

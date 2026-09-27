@@ -5,7 +5,6 @@ import android.graphics.drawable.ColorDrawable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.ExperimentalLayoutApi
 import androidx.compose.material3.FlowRow
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -20,7 +19,6 @@ import cn.geektang.privacyspace.R
 import cn.geektang.privacyspace.bean.AppInfo
 import coil.compose.AsyncImage
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AppInfoColumnItem(
     appInfo: AppInfo,

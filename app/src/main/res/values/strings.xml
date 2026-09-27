@@ -15,7 +15,7 @@
     <string name="uninstall">Uninstall</string>
     <string name="unhide">Unhide</string>
     <string name="launcher_notice">1、If the random package name of Magisk is enabled, add it to the whitelist. Otherwise, hidden apps cannot obtain Root permission\n2、Make sure to restart the mobile phone after upgrading from the old version; otherwise, the function will be invalid\n3、On this page, you can hold down the icon to set \"Connected Apps\". \"Connected Apps\" and the app configured in this method are not hidden from each other\n4、Hiding the system apps may cause the system to fail to boot</string>
-    <string name="setting_up_for">Setting up for \'%s\',the Connected Apps and \'%s\' are mutually visible.</string>
+    <string name="setting_up_for">Setting up for \'%1$s\',the Connected Apps and \'%1$s\' are mutually visible.</string>
     <string name="current_app_version">Current App Version</string>
     <string name="current_app_version_is">Current app version is v%s</string>
     <string name="view_update_info_coolapk">View Update Info(Coolapk)</string>

@@ -7,6 +7,9 @@ on:
     branches: [ main, develop ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -50,17 +53,33 @@ jobs:
             -dname "CN=CI, OU=CI, O=CI, L=CI, ST=CI, C=RU"
           ls -lh /tmp/ci.keystore
 
-      - name: Build Debug APK
+      - name: Build Release APK
         env:
           Space_storeFile: /tmp/ci.keystore
           Space_keyAlias: ci
           Space_keyPassword: android
           Space_storePassword: android
           Space_AppCenterSecret: ci-dummy-secret
-        run: ./gradlew assembleDebug --stacktrace
+        run: ./gradlew assembleRelease --stacktrace
 
-      - name: Upload Debug APK
-        uses: actions/upload-artifact@v4
+      - name: Get app version
+        id: version
+        run: |
+          VERSION=$(grep -m1 'versionName' app/build.gradle | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Detected version: $VERSION"
+          ls -lh app/build/outputs/apk/release/
+
+      - name: Rename APK (attach as .apk, not archive)
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk "PrivacySpace-v${{ steps.version.outputs.version }}.apk"
+          ls -lh PrivacySpace-*.apk
+
+      - name: Publish to GitHub Release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
         with:
-          name: app-debug
-          path: app/build/outputs/apk/debug/*.apk
+          tag_name: v${{ steps.version.outputs.version }}
+          name: PrivacySpace v${{ steps.version.outputs.version }}
+          files: PrivacySpace-v*.apk
+          generate_release_notes: true

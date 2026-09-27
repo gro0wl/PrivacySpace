@@ -24,7 +24,7 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Install Android 32 SDK (use preinstalled SDK on runner)
+      - name: Install Android SDK (use preinstalled SDK on runner)
         run: |
           echo "ANDROID_HOME=$ANDROID_HOME"
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"

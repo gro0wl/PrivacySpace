@@ -151,15 +151,14 @@ class ConfigServer : XC_MethodHook() {
                 ""
             }
             firstArg == GET_USERS -> {
-                val users = userInfoListCache
                 val systemUsers = mutableListOf<SystemUserInfo>()
-                users?.forEach { userInfo ->
-                    if (userInfo !is UserInfo) return
-                    val systemUserInfo = SystemUserInfo(
-                        id = userInfo.id,
-                        name = userInfo.name
+                userInfoListCache?.filterIsInstance<UserInfo>()?.forEach { userInfo ->
+                    systemUsers.add(
+                        SystemUserInfo(
+                            id = userInfo.id,
+                            name = userInfo.name
+                        )
                     )
-                    systemUsers.add(systemUserInfo)
                 }
                 JsonHelper.systemUserInfoListAdapter().toJson(systemUsers)
             }

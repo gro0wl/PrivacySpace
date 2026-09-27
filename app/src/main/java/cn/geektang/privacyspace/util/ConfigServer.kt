@@ -4,6 +4,8 @@ import android.app.ActivityThread
 import android.content.pm.PackageManager
 import android.content.pm.UserInfo
 import android.os.Binder
+import android.os.Parcel
+import android.os.Parcelable
 import android.os.ServiceManager
 import android.os.SystemProperties
 import cn.geektang.privacyspace.BuildConfig
@@ -43,6 +45,7 @@ class ConfigServer : XC_MethodHook() {
         }
 
         hookInstallerQueryMethods(pmsClass!!)
+        hookPackageManagerTransact()
 
         val userManagerClass = try {
             classLoader.tryLoadClass("com.android.server.pm.UserManagerService")
@@ -89,10 +92,18 @@ class ConfigServer : XC_MethodHook() {
         for (name in HookUtil.pmsClassNameArray) {
             classLoader.loadClassSafe(name)?.let { candidates.add(it) }
         }
+        val hierarchy = mutableListOf<String>()
+        val installish = mutableSetOf<String>()
         for (candidate in candidates) {
             var c: Class<*>? = candidate
             while (c != null && c != Any::class.java) {
+                if (candidate == pms) {
+                    hierarchy.add(c.name)
+                }
                 for (method in c.declaredMethods) {
+                    if (method.name.contains("nstall", ignoreCase = true)) {
+                        installish.add("${c.name}#${method.name}(${method.parameterTypes.joinToString { it.simpleName }})")
+                    }
                     if (method.name == "getInstallerPackageName"
                         || method.name == "getInstallSourceInfo"
                     ) {
@@ -107,6 +118,8 @@ class ConfigServer : XC_MethodHook() {
                 c = c.superclass
             }
         }
+        XLog.i("PMS hierarchy: ${hierarchy.joinToString(" -> ")}")
+        XLog.i("PMS *nstall* methods: ${if (installish.isEmpty()) "none" else installish.joinToString()}")
         XLog.i("ConfigServer IPC hooks: ${if (hooked.isEmpty()) "NONE attached!" else hooked.joinToString()}")
     }
 
@@ -133,6 +146,137 @@ class ConfigServer : XC_MethodHook() {
         val info = newInstallSourceInfo(payload, returnType) ?: return
         param.result = info
         XLog.i("ConfigServer served '${firstArg.take(24)}' (${payload.length} chars).")
+    }
+
+    /**
+     * Fallback IPC channel: intercept PMS binder transactions directly at
+     * IPackageManager$Stub#onTransact. Works regardless of where/whether the
+     * installer methods are declared (refactored PMS, OEM subclasses), as long
+     * as the AIDL transaction codes exist. The parcel position is restored for
+     * anything that is not our command, keeping the hook fully transparent.
+     */
+    private var stubClass: Class<*>? = null
+    private var transactInstallSourceCode: Int? = null
+    private var transactInstallerPackageCode: Int? = null
+
+    private fun hookPackageManagerTransact() {
+        val stub = try {
+            classLoader.tryLoadClass("android.content.pm.IPackageManager\$Stub")
+        } catch (e: Throwable) {
+            XLog.e(e, "IPackageManager\$Stub not found.")
+            return
+        }
+        stubClass = stub
+        transactInstallSourceCode = stubTransactionCode(stub, "TRANSACTION_getInstallSourceInfo")
+        transactInstallerPackageCode = stubTransactionCode(stub, "TRANSACTION_getInstallerPackageName")
+        XLog.i("ConfigServer transact codes: getInstallSourceInfo=$transactInstallSourceCode, getInstallerPackageName=$transactInstallerPackageCode")
+        var hooked = 0
+        var c: Class<*>? = stub
+        while (c != null && c != Any::class.java) {
+            for (m in c.declaredMethods) {
+                if (m.name == "onTransact") {
+                    try {
+                        XposedBridge.hookMethod(m, transactHook)
+                        hooked++
+                    } catch (e: Throwable) {
+                        XLog.e(e, "Hook onTransact failed.")
+                    }
+                }
+            }
+            c = c.superclass
+        }
+        XLog.i("ConfigServer onTransact hooks: $hooked")
+    }
+
+    private fun stubTransactionCode(stub: Class<*>, field: String): Int? {
+        return try {
+            val f = stub.getDeclaredField(field)
+            f.isAccessible = true
+            f.getInt(null)
+        } catch (e: Throwable) {
+            null
+        }
+    }
+
+    private val transactHook = object : XC_MethodHook() {
+        override fun beforeHookedMethod(param: MethodHookParam) {
+            val code = param.args.getOrNull(0) as? Int ?: return
+            val isInstallSource = code == transactInstallSourceCode
+            val isInstallerPackage = code == transactInstallerPackageCode
+            if (!isInstallSource && !isInstallerPackage) {
+                return
+            }
+            val callingUid = Binder.getCallingUid()
+            if (callingUid != getPackageUid(BuildConfig.APPLICATION_ID)
+                && callingUid != getPackageUid("com.android.settings")
+            ) {
+                return
+            }
+            val data = param.args.getOrNull(1) as? Parcel ?: return
+            val reply = param.args.getOrNull(2) as? Parcel ?: return
+            val startPos = try {
+                data.dataPosition()
+            } catch (e: Throwable) {
+                return
+            }
+            val packageName = try {
+                data.enforceInterface("android.content.pm.IPackageManager")
+                data.readString()
+            } catch (e: Throwable) {
+                null
+            }
+            if (packageName == null) {
+                restoreParcel(data, startPos)
+                return
+            }
+            val payload = resolveServerPayload(packageName)
+            if (payload == null) {
+                restoreParcel(data, startPos)
+                return
+            }
+            try {
+                reply.writeNoException()
+                if (isInstallerPackage) {
+                    reply.writeString(payload)
+                } else {
+                    val info = newInstallSourceInfoFromStub(payload) ?: return
+                    writeTypedObject(reply, info)
+                }
+                param.result = true
+                XLog.i("ConfigServer served '${packageName.take(24)}' (${payload.length} chars).")
+            } catch (e: Throwable) {
+                XLog.e(e, "ConfigServer transact reply failed.")
+            }
+        }
+
+        private fun restoreParcel(data: Parcel, pos: Int) {
+            try {
+                data.setDataPosition(pos)
+            } catch (ignored: Throwable) {
+            }
+        }
+    };
+
+    private fun newInstallSourceInfoFromStub(installingPackageName: String): Any? {
+        return try {
+            val loader = stubClass?.classLoader ?: classLoader
+            val infoClass = loader.loadClass("android.content.pm.InstallSourceInfo")
+            newInstallSourceInfo(installingPackageName, infoClass)
+        } catch (e: Throwable) {
+            XLog.e(e, "Load InstallSourceInfo failed.")
+            null
+        }
+    }
+
+    private fun writeTypedObject(reply: Parcel, info: Any) {
+        // Parcel.writeTypedObject exists since API 29; invoked via reflection so
+        // the class still verifies on older releases (this path only runs on 30+).
+        val m = Parcel::class.java.getMethod(
+            "writeTypedObject",
+            Parcelable::class.java,
+            Int::class.javaPrimitiveType
+        )
+        m.invoke(reply, info as Parcelable, 1)
     }
 
     /** Returns the payload for our internal commands, or null for real packages. */

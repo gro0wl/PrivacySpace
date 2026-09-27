@@ -4,9 +4,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Text
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -20,7 +21,6 @@ import cn.geektang.privacyspace.constant.RouteConstant
 import cn.geektang.privacyspace.ui.widget.*
 import cn.geektang.privacyspace.util.LocalNavHostController
 import cn.geektang.privacyspace.util.OnLifecycleEvent
-import com.google.accompanist.insets.navigationBarsPadding
 
 @Composable
 fun AddBlindAppsScreen(viewModel: AddBlindAppsViewModel = viewModel()) {
@@ -98,7 +98,7 @@ private fun AppItem(
                             .clickable {
                                 navController.navigate("${RouteConstant.SET_CONNECTED_APPS}?targetPackageName=${appInfo.packageName}")
                             },
-                        color = MaterialTheme.colors.primary,
+                        color = MaterialTheme.colorScheme.primary,
                         text = stringResource(R.string.click_to_set_connected_apps)
                     )
                 }

@@ -6,17 +6,13 @@ import android.graphics.drawable.ColorDrawable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.AlertDialog
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Text
-import androidx.compose.material.TextButton
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import cn.geektang.privacyspace.BuildConfig
@@ -24,7 +20,8 @@ import cn.geektang.privacyspace.R
 import cn.geektang.privacyspace.bean.AppInfo
 import cn.geektang.privacyspace.ui.widget.*
 import cn.geektang.privacyspace.util.*
-import com.google.accompanist.insets.navigationBarsPadding
+import cn.geektang.privacyspace.util.AppHelper.getXposedModuleScopeList
+import androidx.compose.foundation.layout.navigationBarsPadding
 import kotlin.system.exitProcess
 
 @Composable
@@ -35,9 +32,18 @@ fun AddHiddenAppsScreen(viewModel: AddHiddenAppsViewModel = viewModel()) {
     val hiddenAppList by viewModel.hiddenAppListFlow.collectAsState()
     val showSystemApps by viewModel.isShowSystemAppsFlow.collectAsState()
     val searchText by viewModel.searchTextFlow.collectAsState()
+    val context = LocalContext.current
+    val scopeDialogApp = remember { mutableStateOf<AppInfo?>(null) }
+    val scopeDialogScope = remember { mutableStateOf<List<String>>(emptyList()) }
     val actions = object : AddHiddenAppsActions {
         override fun addApp2HiddenList(appInfo: AppInfo) {
-            viewModel.addApp2HiddenList(appInfo)
+            val scope = appInfo.findScopeList(context)
+            if (scope.isNotEmpty()) {
+                scopeDialogApp.value = appInfo
+                scopeDialogScope.value = scope
+            } else {
+                viewModel.addApp2HiddenList(appInfo, connectScope = true)
+            }
         }
 
         override fun removeApp2HiddenList(appInfo: AppInfo) {
@@ -62,7 +68,32 @@ fun AddHiddenAppsScreen(viewModel: AddHiddenAppsViewModel = viewModel()) {
         actions = actions
     )
 
-    val context = LocalContext.current
+    val dialogApp = scopeDialogApp.value
+    if (dialogApp != null) {
+        MessageDialog(
+            text = {
+                Text(
+                    text = String.format(
+                        stringResource(R.string.tips_connect_scope),
+                        dialogApp.appName,
+                        scopeDialogScope.value.joinToString()
+                    )
+                )
+            },
+            positiveButtonText = stringResource(R.string.hide_and_connect),
+            negativeButtonText = stringResource(R.string.hide_only),
+            onPositiveButtonClick = {
+                viewModel.addApp2HiddenList(dialogApp, connectScope = true)
+                scopeDialogApp.value = null
+            },
+            onNegativeButtonClick = {
+                viewModel.addApp2HiddenList(dialogApp, connectScope = false)
+                scopeDialogApp.value = null
+            },
+            onDismissRequest = { scopeDialogApp.value = null }
+        )
+    }
+
     NoticeDialogLocal(context)
 
     OnLifecycleEvent { event ->
@@ -73,6 +104,14 @@ fun AddHiddenAppsScreen(viewModel: AddHiddenAppsViewModel = viewModel()) {
             viewModel.tryUpdateConfig()
         }
     }
+}
+
+private fun AppInfo.findScopeList(context: Context): List<String> {
+    if (!isXposedModule || packageName == BuildConfig.APPLICATION_ID) {
+        return emptyList()
+    }
+    return getXposedModuleScopeList(context, applicationInfo)
+        .filter { it != cn.geektang.privacyspace.constant.ConfigConstant.ANDROID_FRAMEWORK }
 }
 
 @Composable

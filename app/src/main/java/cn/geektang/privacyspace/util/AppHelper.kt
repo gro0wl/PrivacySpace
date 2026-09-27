@@ -8,11 +8,10 @@ import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.net.Uri
-import androidx.collection.ArrayMap
+import androidx.core.content.ContextCompat
 import cn.geektang.privacyspace.BuildConfig
 import cn.geektang.privacyspace.R
 import cn.geektang.privacyspace.bean.AppInfo
-import com.microsoft.appcenter.analytics.Analytics
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,14 +30,11 @@ object AppHelper {
         } catch (ignored: CancellationException) {
             return
         } catch (e: Exception) {
-            val properties = ArrayMap<String, String>()
-            properties["exception"] = e.javaClass.name
-            Analytics.trackEvent("ReadAppsFailed", properties)
             getAppsRetryTimes++
-
             e.printStackTrace()
-            if (getAppsRetryTimes == 3) {
+            if (getAppsRetryTimes >= 3) {
                 context.showToast(R.string.tips_get_apps_failed)
+                return
             }
             delay(1000)
             // retry after 1 seconds
@@ -169,7 +165,8 @@ object AppHelper {
 
     fun startWatchingAppsCountChange(
         context: Context,
-        onAppRemoved: (packageName: String) -> Unit
+        onAppRemoved: (packageName: String) -> Unit,
+        onAppAdded: (appInfo: AppInfo) -> Unit = {}
     ) {
         val packageFilter = IntentFilter()
         packageFilter.addAction(Intent.ACTION_PACKAGE_FULLY_REMOVED)
@@ -197,6 +194,7 @@ object AppHelper {
                             e.printStackTrace()
                             return
                         }
+                        onAppAdded(appInfo)
                         // switch to ui thread
                         scope.launch {
                             val apps = _allApps.value.toMutableList()
@@ -208,7 +206,21 @@ object AppHelper {
                 }
             }
         }
-        context.applicationContext.registerReceiver(receiver, packageFilter)
+        context.applicationContext.registerReceiverCompat(receiver, packageFilter)
+    }
+
+    private fun Context.registerReceiverCompat(
+        receiver: BroadcastReceiver,
+        filter: IntentFilter
+    ) {
+        // Android 13+ requires an explicit exported flag for dynamically
+        // registered receivers when targeting API 33+.
+        ContextCompat.registerReceiver(
+            this,
+            receiver,
+            filter,
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
     }
 
     fun AppInfo.isMatch(searchTextLowercase: String): Boolean {

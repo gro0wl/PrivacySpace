@@ -14,6 +14,7 @@ data class ConfigData(
     val sharedUserIdMap: Map<String, String>?,
     val multiUserConfig: Map<String, Set<Int>>?,
     val blind: Set<String>?,
+    val autoHideXposedModules: Boolean = false,
 ) {
     companion object {
         val EMPTY = ConfigData(
@@ -23,7 +24,8 @@ data class ConfigData(
             connectedApps = emptyMap(),
             sharedUserIdMap = emptyMap(),
             multiUserConfig = emptyMap(),
-            blind = emptySet()
+            blind = emptySet(),
+            autoHideXposedModules = false
         )
     }
 }

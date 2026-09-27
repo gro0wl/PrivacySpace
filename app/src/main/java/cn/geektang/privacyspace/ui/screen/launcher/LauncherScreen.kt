@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+
 package cn.geektang.privacyspace.ui.screen.launcher
 
 import android.content.Context
@@ -13,7 +15,7 @@ import androidx.compose.foundation.lazy.GridCells
 import androidx.compose.foundation.lazy.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.*
+import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreVert
@@ -47,12 +49,13 @@ import cn.geektang.privacyspace.constant.UiSettings
 import cn.geektang.privacyspace.constant.UiSettings.obtainCellContentPaddingRatio
 import cn.geektang.privacyspace.constant.UiSettings.obtainCellCount
 import cn.geektang.privacyspace.ui.widget.NoticeDialog
+import cn.geektang.privacyspace.ui.widget.PopupCheckboxItem
 import cn.geektang.privacyspace.ui.widget.PopupItem
 import cn.geektang.privacyspace.ui.widget.PopupMenu
 import cn.geektang.privacyspace.ui.widget.TopBar
 import cn.geektang.privacyspace.util.*
 import cn.geektang.privacyspace.util.AppHelper.getLauncherPackageName
-import coil.compose.rememberImagePainter
+import coil.compose.AsyncImage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -121,7 +124,8 @@ fun LauncherScreen(
         loadStatus = loadStatus,
         showAdjustLayoutDialog = showAdjustLayoutDialog,
         actions = actions,
-        syncConfig = viewModel::syncConfig
+        syncConfig = viewModel::syncConfig,
+        onAutoHideChange = viewModel::setAutoHideXposedModules
     )
     if (showAdjustLayoutDialog.value) {
         AdjustLayoutDialog(showAdjustLayoutDialog, cellCount, cellContentPaddingRatio)
@@ -162,7 +166,7 @@ fun LauncherScreen(
     })
 }
 
-@OptIn(ExperimentalFoundationApi::class, ExperimentalAnimationApi::class)
+@OptIn(ExperimentalAnimationApi::class)
 @Composable
 private fun LauncherScreenContent(
     appList: List<AppInfo>,
@@ -175,11 +179,19 @@ private fun LauncherScreenContent(
     showAdjustLayoutDialog: MutableState<Boolean>,
     actions: LauncherActions,
     syncConfig: suspend () -> Unit,
+    onAutoHideChange: (Boolean) -> Unit,
 ) {
     val isPopupMenuShow = remember {
         mutableStateOf(false)
     }
-    LauncherPopupMenu(isPopupMenuShow, showAdjustLayoutDialog, syncConfig, loadStatus)
+    LauncherPopupMenu(
+        isPopupMenuShow,
+        showAdjustLayoutDialog,
+        syncConfig,
+        loadStatus,
+        configData.autoHideXposedModules,
+        onAutoHideChange
+    )
     var popupMenuOffset: Offset? by remember {
         mutableStateOf(null)
     }
@@ -267,7 +279,7 @@ private fun LauncherScreenContent(
         )
         Box(modifier = Modifier.fillMaxSize()) {
             LazyVerticalGrid(
-                cells = GridCells.Fixed(cellCount),
+                columns = GridCells.Fixed(cellCount),
                 contentPadding = PaddingValues(horizontal = 10.dp)
             ) {
                 items(appList) {
@@ -316,7 +328,7 @@ private fun AppItemPopupMenu(
             Surface(
                 modifier = Modifier
                     .padding(end = 5.dp, top = 10.dp),
-                elevation = 3.dp,
+                tonalElevation = 3.dp,
                 shape = RoundedCornerShape(5.dp)
             ) {
                 val navController = LocalNavHostController.current
@@ -375,7 +387,7 @@ private fun LauncherPopupMenuPreview() {
     }
     PopupMenuContent(isShow, remember {
         mutableStateOf(false)
-    }, {}, ConfigHelper.LOADING_STATUS_SUCCESSFUL)
+    }, {}, ConfigHelper.LOADING_STATUS_SUCCESSFUL, false, {})
 }
 
 @Composable
@@ -383,10 +395,19 @@ private fun LauncherPopupMenu(
     isPopupMenuShow: MutableState<Boolean>,
     showAdjustLayoutDialog: MutableState<Boolean>,
     syncConfig: suspend () -> Unit,
-    loadStatus: Int
+    loadStatus: Int,
+    autoHideXposedModules: Boolean,
+    onAutoHideChange: (Boolean) -> Unit
 ) {
     PopupMenu(isShow = isPopupMenuShow) {
-        PopupMenuContent(isPopupMenuShow, showAdjustLayoutDialog, syncConfig, loadStatus)
+        PopupMenuContent(
+            isPopupMenuShow,
+            showAdjustLayoutDialog,
+            syncConfig,
+            loadStatus,
+            autoHideXposedModules,
+            onAutoHideChange
+        )
     }
 }
 
@@ -395,7 +416,9 @@ private fun PopupMenuContent(
     isPopupMenuShow: MutableState<Boolean>,
     showAdjustLayoutDialog: MutableState<Boolean>,
     syncConfig: suspend () -> Unit,
-    loadStatus: Int
+    loadStatus: Int,
+    autoHideXposedModules: Boolean,
+    onAutoHideChange: (Boolean) -> Unit
 ) {
     val navController = LocalNavHostController.current
     Column(
@@ -429,6 +452,17 @@ private fun PopupMenuContent(
             isPopupMenuShow.value = false
             navController.navigate(RouteConstant.BLACKLIST)
         }
+        PopupCheckboxItem(
+            text = stringResource(R.string.auto_hide_xposed_modules),
+            checked = autoHideXposedModules,
+            onCheckedChange = { checked ->
+                if (loadStatus == ConfigHelper.LOADING_STATUS_FAILED) {
+                    context.showToast(context.getString(R.string.tips_go_active))
+                    return@PopupCheckboxItem
+                }
+                onAutoHideChange(checked)
+            }
+        )
         PopupItem(text = stringResource(R.string.reboot_desktop)) {
             isPopupMenuShow.value = false
             scope.launch {
@@ -524,16 +558,9 @@ private fun RestartSystemPopupItem(
         mutableStateOf(false)
     }
     if (isShowConfirmDialog) {
-        AlertDialog(onDismissRequest = { }, text = {
-            Text(
-                modifier = Modifier.fillMaxWidth(),
-                text = stringResource(R.string.tips_confirm_restart_system)
-            )
-        }, buttons = {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = { isShowConfirmDialog = false }) {
-                    Text(text = stringResource(R.string.cancel))
-                }
+        AlertDialog(
+            onDismissRequest = { isShowConfirmDialog = false },
+            confirmButton = {
                 TextButton(onClick = {
                     if (loadStatus == ConfigHelper.LOADING_STATUS_FAILED) {
                         context.showToast(context.getString(R.string.tips_go_active))
@@ -545,8 +572,19 @@ private fun RestartSystemPopupItem(
                 }) {
                     Text(text = stringResource(R.string.confirm))
                 }
+            },
+            dismissButton = {
+                TextButton(onClick = { isShowConfirmDialog = false }) {
+                    Text(text = stringResource(R.string.cancel))
+                }
+            },
+            text = {
+                Text(
+                    modifier = Modifier.fillMaxWidth(),
+                    text = stringResource(R.string.tips_confirm_restart_system)
+                )
             }
-        })
+        )
     }
 
     PopupItem(text = stringResource(R.string.reboot_system)) {
@@ -554,7 +592,6 @@ private fun RestartSystemPopupItem(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun AppItem(
     appInfo: AppInfo,
@@ -588,19 +625,19 @@ private fun AppItem(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             val paddingValue = (cellContentPaddingRatio * 20).dp
-            Image(
+            AsyncImage(
                 modifier = Modifier
                     .padding(horizontal = paddingValue)
                     .fillMaxWidth()
                     .aspectRatio(1f),
-                painter = rememberImagePainter(data = appInfo.appIcon),
+                model = appInfo.appIcon,
                 contentDescription = appInfo.appName
             )
             Text(
                 modifier = Modifier.padding(top = 3.dp),
                 text = appInfo.appName,
                 textAlign = TextAlign.Center,
-                style = MaterialTheme.typography.body2
+                style = MaterialTheme.typography.bodyMedium
             )
         }
     }
@@ -687,6 +724,8 @@ fun LauncherScreenPreview() {
 
         }, syncConfig = {
 
+        }, onAutoHideChange = {
+
         })
 }
 
@@ -719,7 +758,6 @@ interface LauncherActions {
     }
 }
 
-@OptIn(ExperimentalMaterialApi::class)
 @Composable
 private fun AdjustLayoutDialog(
     showAdjustLayoutDialog: MutableState<Boolean>,
@@ -776,7 +814,7 @@ private fun AdjustLayoutDialog(
 @Composable
 private fun RadioButton(cellCount: Int, isChecked: Boolean, onClick: () -> Unit) {
     val backgroundColor = if (isChecked) {
-        MaterialTheme.colors.primary
+        MaterialTheme.colorScheme.primary
     } else {
         Color.LightGray
     }
@@ -870,7 +908,7 @@ private fun MultiUserConfigSettingDialogContent(users: MutableState<List<Pair<Sy
             Text(
                 modifier = Modifier.padding(bottom = 10.dp),
                 text = stringResource(R.string.checked_means_needs_to_be_hidden),
-                style = MaterialTheme.typography.subtitle1
+                style = MaterialTheme.typography.titleMedium
             )
             val usersValue = users.value
             usersValue.forEach { userWithCheckedStatus ->

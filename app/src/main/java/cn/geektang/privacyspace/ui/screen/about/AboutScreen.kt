@@ -1,13 +1,11 @@
 package cn.geektang.privacyspace.ui.screen.about
 
 import androidx.annotation.DrawableRes
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Surface
-import androidx.compose.material.Text
-import androidx.compose.material.primarySurface
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -16,7 +14,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -26,12 +23,16 @@ import cn.geektang.privacyspace.R
 import cn.geektang.privacyspace.ui.widget.TopBar
 import cn.geektang.privacyspace.util.LocalNavHostController
 import cn.geektang.privacyspace.util.openUrl
-import coil.compose.rememberImagePainter
+import coil.compose.AsyncImage
 
 @Preview(showSystemUi = true)
 @Composable
 fun AboutScreen() {
     val navController = LocalNavHostController.current
+    val context = LocalContext.current
+    val appIcon = remember {
+        context.applicationInfo.loadIcon(context.packageManager)
+    }
     Column(modifier = Modifier.fillMaxSize()) {
         TopBar(title = stringResource(R.string.about), onNavigationIconClick = {
             navController.popBackStack()
@@ -44,18 +45,18 @@ fun AboutScreen() {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             val appName = stringResource(id = R.string.app_name)
-            Image(
-                painter = painterResource(id = R.mipmap.ic_launcher_round),
+            AsyncImage(
+                model = appIcon,
                 contentDescription = appName
             )
             Text(
                 modifier = Modifier.padding(top = 5.dp),
                 text = appName,
-                style = MaterialTheme.typography.h6
+                style = MaterialTheme.typography.headlineSmall
             )
             Text(
                 text = "Version: ${BuildConfig.VERSION_NAME}",
-                style = MaterialTheme.typography.subtitle1
+                style = MaterialTheme.typography.titleMedium
             )
         }
 
@@ -89,7 +90,6 @@ fun AboutScreen() {
             Card(cardItem = it)
         }
 
-        val context = LocalContext.current
         val telegramAndCoolapk = remember {
             listOf(
                 CardItem(
@@ -115,16 +115,11 @@ fun AboutScreen() {
 
 @Composable
 private fun GroupTitle(text: String) {
-    val isLight = MaterialTheme.colors.isLight
-    val primarySurfaceColor = MaterialTheme.colors.primarySurface
-    val surfaceBackgroundColor = remember(isLight) {
-        if (isLight) {
-            Color(0xfff7f7f7)
-        } else {
-            primarySurfaceColor
-        }
-    }
-    Surface(modifier = Modifier.fillMaxWidth(), color = surfaceBackgroundColor, elevation = 2.dp) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        tonalElevation = 2.dp
+    ) {
         Text(
             modifier = Modifier
                 .padding(horizontal = 15.dp, vertical = 10.dp),
@@ -135,22 +130,6 @@ private fun GroupTitle(text: String) {
 
 @Composable
 private fun Card(cardItem: CardItem) {
-    val isLight = MaterialTheme.colors.isLight
-    val textColor = remember(isLight) {
-        if (isLight) {
-            Color(0xde000000)
-        } else {
-            Color(0xdeffffff)
-        }
-    }
-    val hintColor = remember(isLight) {
-        if (isLight) {
-            Color(0xff757575)
-        } else {
-            Color(0x80ffffff)
-        }
-    }
-
     val context = LocalContext.current
     Row(
         modifier = Modifier
@@ -164,18 +143,26 @@ private fun Card(cardItem: CardItem) {
             .padding(horizontal = 15.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Image(
+        AsyncImage(
             modifier = Modifier
                 .clip(MaterialTheme.shapes.small)
                 .size(38.dp),
-            painter = rememberImagePainter(data = cardItem.avatar),
+            model = cardItem.avatar,
             contentDescription = "avatar",
             contentScale = ContentScale.Crop
         )
 
         Column(modifier = Modifier.padding(horizontal = 10.dp)) {
-            Text(text = cardItem.name, fontSize = 14.sp, color = textColor)
-            Text(text = cardItem.description, fontSize = 12.sp, color = hintColor)
+            Text(
+                text = cardItem.name,
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = cardItem.description,
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

@@ -106,6 +106,10 @@ class LauncherViewModel(private val context: Application) : AndroidViewModel(con
         needSync = needSync or hasChange
     }
 
+    fun setAutoHideXposedModules(enabled: Boolean) {
+        ConfigHelper.updateAutoHideXposedModules(enabled)
+    }
+
     fun connectTo(sourceApp: AppInfo, targetApp: String) {
         val connectedAppsForSourceApp =
             connectedApps[sourceApp.packageName]?.toMutableSet() ?: mutableSetOf()

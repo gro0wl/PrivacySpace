@@ -2,12 +2,13 @@ package cn.geektang.privacyspace.ui.widget
 
 import android.content.pm.ApplicationInfo
 import android.graphics.drawable.ColorDrawable
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.Checkbox
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Text
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ExperimentalLayoutApi
+import androidx.compose.material3.FlowRow
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -17,9 +18,9 @@ import androidx.compose.ui.unit.dp
 import cn.geektang.privacyspace.BuildConfig
 import cn.geektang.privacyspace.R
 import cn.geektang.privacyspace.bean.AppInfo
-import coil.compose.rememberImagePainter
-import com.google.accompanist.flowlayout.FlowRow
+import coil.compose.AsyncImage
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AppInfoColumnItem(
     appInfo: AppInfo,
@@ -33,10 +34,9 @@ fun AppInfoColumnItem(
             .padding(horizontal = 15.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Image(
-            modifier = Modifier
-                .size(48.dp),
-            painter = rememberImagePainter(data = appInfo.appIcon),
+        AsyncImage(
+            modifier = Modifier.size(48.dp),
+            model = appInfo.appIcon,
             contentDescription = appInfo.appName
         )
         Column(
@@ -48,8 +48,8 @@ fun AppInfoColumnItem(
                 modifier = Modifier
                     .padding(horizontal = 5.dp)
             ) {
-                Text(text = appInfo.appName, style = MaterialTheme.typography.subtitle1)
-                Text(text = appInfo.packageName, style = MaterialTheme.typography.body2)
+                Text(text = appInfo.appName, style = MaterialTheme.typography.titleMedium)
+                Text(text = appInfo.packageName, style = MaterialTheme.typography.bodyMedium)
             }
             val chipTexts = mutableListOf<String>()
             if (appInfo.isSystemApp) {

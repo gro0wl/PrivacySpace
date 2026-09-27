@@ -82,7 +82,7 @@ class AddHiddenAppsViewModel(private val context: Application) : AndroidViewMode
         }
     }
 
-    fun addApp2HiddenList(appInfo: AppInfo) {
+    fun addApp2HiddenList(appInfo: AppInfo, connectScope: Boolean = true) {
         val targetSharedUserId = appInfo.sharedUserId
         if (!targetSharedUserId.isNullOrEmpty()) {
             sharedUserIdMap[appInfo.packageName] = targetSharedUserId
@@ -91,7 +91,7 @@ class AddHiddenAppsViewModel(private val context: Application) : AndroidViewMode
         val hiddenAppList = hiddenAppListFlow.value.toMutableSet()
         hiddenAppList.add(appInfo.packageName)
         hiddenAppListFlow.value = hiddenAppList
-        if (appInfo.isXposedModule && appInfo.packageName != BuildConfig.APPLICATION_ID) {
+        if (connectScope && appInfo.isXposedModule && appInfo.packageName != BuildConfig.APPLICATION_ID) {
             val scopeList =
                 AppHelper.getXposedModuleScopeList(context, appInfo.applicationInfo).filter {
                     it != ConfigConstant.ANDROID_FRAMEWORK

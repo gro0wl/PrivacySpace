@@ -57,4 +57,8 @@
     <string name="about_page_telegram_description">隐秘空间Alpha版本</string>
     <string name="about_page_coolapk_description">最新稳定版本</string>
     <string name="restart_settings_app">重启Settings</string>
+    <string name="auto_hide_xposed_modules">自动隐藏新安装的 Xposed 模块</string>
+    <string name="hide_and_connect">隐藏并关联</string>
+    <string name="hide_only">仅隐藏</string>
+    <string name="tips_connect_scope">“%1$s”声明了作用域：%2$s。是否关联这些应用以使其互相可见？</string>
 </resources>

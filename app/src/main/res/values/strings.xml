@@ -57,4 +57,8 @@
     <string name="about_page_telegram_description">Privacy Space Alpha</string>
     <string name="about_page_coolapk_description">Latest stable version</string>
     <string name="restart_settings_app">Restart Settings App</string>
+    <string name="auto_hide_xposed_modules">Auto-hide new Xposed modules</string>
+    <string name="hide_and_connect">Hide + connect</string>
+    <string name="hide_only">Hide only</string>
+    <string name="tips_connect_scope">\'%1$s\' declares scope: %2$s. Connect these apps so they stay mutually visible?</string>
 </resources>

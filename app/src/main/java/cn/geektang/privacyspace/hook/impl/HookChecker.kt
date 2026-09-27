@@ -13,8 +13,15 @@ import cn.geektang.privacyspace.util.HookUtil
 import cn.geektang.privacyspace.util.XLog
 
 object HookChecker {
+    // One-time init flag for the blind whitelist expansion.
     @Volatile
-    private var greenChannel = false
+    private var blindWhitelistReady = false
+
+    // Re-entrancy guard: building the whitelist calls into PMS, whose
+    // methods are hooked themselves. Without this, shouldIntercept would
+    // recurse into itself through getSharedUserIdMap on the same thread.
+    @Volatile
+    private var initializingBlindWhitelist = false
     private var defaultBlindWhitelist: Set<String> = emptySet()
 
     @JvmStatic
@@ -24,24 +31,28 @@ object HookChecker {
         targetPackageName: String,
         callingPackageName: String
     ): Boolean {
-        if (greenChannel) {
+        if (initializingBlindWhitelist) {
             return false
         }
 
-        if (defaultBlindWhitelist.isEmpty()) {
-            greenChannel = true
-
-            val sharedUserIdMap = getSharedUserIdMap(classLoader)
-            if (null != sharedUserIdMap) {
-                val defaultBlindWhitelist = ConfigConstant.defaultBlindWhitelist.toMutableSet()
-                for (white in ConfigConstant.defaultBlindWhitelist) {
-                    val value = sharedUserIdMap[white] ?: emptyList()
-                    defaultBlindWhitelist.addAll(value)
+        if (!blindWhitelistReady) {
+            initializingBlindWhitelist = true
+            try {
+                val sharedUserIdMap = getSharedUserIdMap(classLoader)
+                if (null != sharedUserIdMap) {
+                    val defaultBlindWhitelist =
+                        ConfigConstant.defaultBlindWhitelist.toMutableSet()
+                    for (white in ConfigConstant.defaultBlindWhitelist) {
+                        val value = sharedUserIdMap[white] ?: emptyList()
+                        defaultBlindWhitelist.addAll(value)
+                    }
+                    this@HookChecker.defaultBlindWhitelist = defaultBlindWhitelist
+                    blindWhitelistReady = true
                 }
-                this@HookChecker.defaultBlindWhitelist = defaultBlindWhitelist
+            } finally {
+                initializingBlindWhitelist = false
             }
         }
-        greenChannel = false
 
         if (callingPackageName == targetPackageName) {
             return false

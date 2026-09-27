@@ -3,9 +3,9 @@ package cn.geektang.privacyspace.ui.widget
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.Checkbox
-import androidx.compose.material.Surface
-import androidx.compose.material.Text
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.ui.Alignment
@@ -24,7 +24,7 @@ fun PopupMenu(isShow: MutableState<Boolean>, content: @Composable () -> Unit) {
             Surface(
                 modifier = Modifier
                     .padding(end = 5.dp, top = 10.dp),
-                elevation = 3.dp,
+                tonalElevation = 3.dp,
                 shape = RoundedCornerShape(5.dp)
             ) {
                 content()

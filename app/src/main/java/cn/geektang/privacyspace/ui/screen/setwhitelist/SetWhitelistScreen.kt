@@ -3,7 +3,8 @@ package cn.geektang.privacyspace.ui.screen.setwhitelist
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.Text
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -15,7 +16,6 @@ import cn.geektang.privacyspace.bean.AppInfo
 import cn.geektang.privacyspace.ui.widget.*
 import cn.geektang.privacyspace.util.LocalNavHostController
 import cn.geektang.privacyspace.util.OnLifecycleEvent
-import com.google.accompanist.insets.navigationBarsPadding
 
 @Composable
 fun SetWhitelistScreen(viewModel: SetWhitelistViewModel = viewModel()) {

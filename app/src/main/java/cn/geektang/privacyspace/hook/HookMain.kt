@@ -2,7 +2,6 @@ package cn.geektang.privacyspace.hook
 
 import android.app.Application
 import android.content.Context
-import android.os.Build
 import android.os.FileObserver
 import cn.geektang.privacyspace.bean.ConfigData
 import cn.geektang.privacyspace.constant.ConfigConstant
@@ -58,7 +57,7 @@ class HookMain : IXposedHookLoadPackage {
                 connectedAppsTpm.putAll(connectedAppsNew)
             }
 
-            this.configData = configData.copy(
+            this.configData = data.copy(
                 whitelist = whitelistTmp,
                 connectedApps = connectedAppsTpm
             )
@@ -72,17 +71,13 @@ class HookMain : IXposedHookLoadPackage {
         if (lpparam.packageName == ConfigConstant.ANDROID_FRAMEWORK) {
             loadConfigDataAndParse()
             configServer.start(classLoader = classLoader)
-            when {
-                Build.VERSION.SDK_INT >= 30 -> {
-                    FrameworkHookerApi30Impl.start(classLoader)
-                }
-                Build.VERSION.SDK_INT >= 28 -> {
-                    FrameworkHookerApi28Impl.start(classLoader)
-                }
-                else -> {
-                    FrameworkHookerApi26Impl.start(classLoader)
-                }
-            }
+            // Start every framework hooker: each impl only attaches to methods
+            // that actually exist on this ROM, so this covers AOSP/OEM variants
+            // and newer Android versions without version checks. Filtering is
+            // idempotent, attaching several impls to one method is harmless.
+            FrameworkHookerApi30Impl.start(classLoader)
+            FrameworkHookerApi28Impl.start(classLoader)
+            FrameworkHookerApi26Impl.start(classLoader)
         } else if ("com.android.settings" == lpparam.packageName) {
             SettingsAppHookImpl.start(classLoader)
             XposedHelpers.findAndHookMethod(

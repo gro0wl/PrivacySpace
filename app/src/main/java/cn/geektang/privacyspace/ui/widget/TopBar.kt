@@ -1,8 +1,11 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package cn.geektang.privacyspace.ui.widget
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.material.*
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
@@ -16,7 +19,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import cn.geektang.privacyspace.R
-import com.google.accompanist.insets.statusBarsPadding
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -35,8 +37,8 @@ fun TopBar(
     }
 
     Surface(
-        color = MaterialTheme.colors.primarySurface,
-        elevation = AppBarDefaults.TopAppBarElevation
+        color = MaterialTheme.colorScheme.primary,
+        shadowElevation = 4.dp
     ) {
         Box(modifier = Modifier.statusBarsPadding()) {
             TopAppBar(
@@ -44,9 +46,13 @@ fun TopBar(
                     Text(text = title)
                 },
                 actions = actions,
-                backgroundColor = Color.Transparent,
-                elevation = 0.dp,
-                navigationIcon = navigationIcon
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Transparent,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
+                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary
+                ),
+                navigationIcon = navigationIcon ?: {}
             )
         }
     }
@@ -73,8 +79,8 @@ fun SearchTopBar(
     onNavigationIconClick: (() -> Unit)? = null
 ) {
     Surface(
-        color = MaterialTheme.colors.primarySurface,
-        elevation = AppBarDefaults.TopAppBarElevation
+        color = MaterialTheme.colorScheme.primary,
+        shadowElevation = 4.dp
     ) {
         Box(modifier = Modifier.statusBarsPadding()) {
             SearchTopBarInner(
@@ -153,8 +159,12 @@ private fun SearchTopBarInner(
                 )
             }
         },
-        backgroundColor = Color.Transparent,
-        elevation = 0.dp,
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = Color.Transparent,
+            titleContentColor = MaterialTheme.colorScheme.onPrimary,
+            navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
+            actionIconContentColor = MaterialTheme.colorScheme.onPrimary
+        )
     )
 }
 
@@ -172,13 +182,17 @@ private fun RowScope.SearchBoxTextField(
             Text(text = stringResource(R.string.search))
         },
         singleLine = true,
-        colors = TextFieldDefaults.textFieldColors(
-            backgroundColor = Color.Transparent,
+        colors = TextFieldDefaults.colors(
+            focusedContainerColor = Color.Transparent,
+            unfocusedContainerColor = Color.Transparent,
+            disabledContainerColor = Color.Transparent,
             focusedIndicatorColor = Color.Transparent,
             unfocusedIndicatorColor = Color.Transparent,
-            cursorColor = MaterialTheme.colors.secondary,
-            textColor = Color.White,
-            placeholderColor = Color(0xffcccccc)
+            cursorColor = MaterialTheme.colorScheme.secondary,
+            focusedTextColor = Color.White,
+            unfocusedTextColor = Color.White,
+            focusedPlaceholderColor = Color(0xffcccccc),
+            unfocusedPlaceholderColor = Color(0xffcccccc)
         ),
         trailingIcon = {
             if (searchText.isNotEmpty()) {

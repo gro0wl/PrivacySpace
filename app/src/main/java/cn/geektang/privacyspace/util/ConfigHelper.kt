@@ -3,6 +3,7 @@ package cn.geektang.privacyspace.util
 import android.content.Context
 import android.content.pm.ResolveInfo
 import cn.geektang.privacyspace.BuildConfig
+import cn.geektang.privacyspace.bean.AppInfo
 import cn.geektang.privacyspace.bean.ConfigData
 import cn.geektang.privacyspace.bean.SystemUserInfo
 import cn.geektang.privacyspace.constant.ConfigConstant
@@ -32,9 +33,15 @@ object ConfigHelper {
     fun initConfig(context: Context) {
         if (!::configClient.isInitialized) {
             configClient = ConfigClient(context.applicationContext)
-            AppHelper.startWatchingAppsCountChange(context, onAppRemoved = { packageName ->
-                removeConfigForApp(packageName)
-            })
+            AppHelper.startWatchingAppsCountChange(
+                context,
+                onAppRemoved = { packageName ->
+                    removeConfigForApp(packageName)
+                },
+                onAppAdded = { appInfo ->
+                    maybeAutoHideXposedModule(context, appInfo)
+                }
+            )
         }
         val serverVersion = configClient.serverVersion()
         isServerStart = serverVersion > 0
@@ -188,16 +195,63 @@ object ConfigHelper {
         }
     }
 
+    fun updateAutoHideXposedModules(enabled: Boolean) {
+        val newConfigData = configDataFlow.value.copy(autoHideXposedModules = enabled)
+        configDataFlow.value = newConfigData
+        scope.launch {
+            updateConfigInner(newConfigData)
+        }
+    }
+
+    private fun maybeAutoHideXposedModule(context: Context, appInfo: AppInfo) {
+        scope.launch {
+            val config = configDataFlow.value
+            if (config == ConfigData.EMPTY) {
+                return@launch
+            }
+            if (!config.autoHideXposedModules || !appInfo.isXposedModule) {
+                return@launch
+            }
+            if (appInfo.packageName == BuildConfig.APPLICATION_ID
+                || config.hiddenAppList.contains(appInfo.packageName)
+            ) {
+                return@launch
+            }
+            val hiddenAppListNew = config.hiddenAppList.toMutableSet()
+            hiddenAppListNew.add(appInfo.packageName)
+            val connectedAppsNew = config.connectedApps.toMutableMap()
+            val scopeList = AppHelper.getXposedModuleScopeList(context, appInfo.applicationInfo)
+                .filter { it != ConfigConstant.ANDROID_FRAMEWORK }
+            if (scopeList.isNotEmpty()) {
+                val connected = connectedAppsNew.getOrDefault(
+                    appInfo.packageName,
+                    emptySet()
+                ).toMutableSet()
+                connected.addAll(scopeList)
+                connectedAppsNew[appInfo.packageName] = connected
+            }
+            val sharedUserIdMapNew = (config.sharedUserIdMap ?: emptyMap()).toMutableMap()
+            if (!appInfo.sharedUserId.isNullOrEmpty()) {
+                sharedUserIdMapNew[appInfo.packageName] = appInfo.sharedUserId
+            }
+            updateHiddenListAndConnectedApps(
+                hiddenAppListNew,
+                connectedAppsNew,
+                config.multiUserConfig ?: emptyMap(),
+                sharedUserIdMapNew
+            )
+        }
+    }
+
     fun rebootTheSystem() {
         configClient.rebootTheSystem()
     }
 
     suspend fun forceStop(packageName: String): Boolean {
-        val result = configClient.forceStop(packageName)
-        if(!result){
-            Su.exec("am force-stop $packageName")
+        if (configClient.forceStop(packageName)) {
+            return true
         }
-        return true
+        return Su.exec("am force-stop $packageName")
     }
 
     suspend fun queryAllUsers(): List<SystemUserInfo>? {

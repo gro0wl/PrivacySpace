@@ -15,17 +15,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17 for SDK setup
+      - name: Set up JDK 17 for SDK packages
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android 32 SDK
+      - name: Install Android 32 SDK (use preinstalled SDK on runner)
         run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          ls "$ANDROID_HOME/cmdline-tools" || true
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
+          yes | sdkmanager --licenses || true
           sdkmanager --install "platforms;android-32" "build-tools;32.0.0" "platform-tools"
 
       - name: Set up JDK 11 for build (AGP 7.1 requires Java 11)

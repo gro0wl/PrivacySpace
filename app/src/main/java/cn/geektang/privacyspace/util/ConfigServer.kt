@@ -42,12 +42,7 @@ class ConfigServer : XC_MethodHook() {
             return
         }
 
-        XposedHelpers.findAndHookMethod(
-            pmsClass,
-            "getInstallerPackageName",
-            String::class.java,
-            this
-        )
+        hookInstallerQueryMethods(pmsClass!!)
 
         val userManagerClass = try {
             classLoader.tryLoadClass("com.android.server.pm.UserManagerService")
@@ -72,8 +67,130 @@ class ConfigServer : XC_MethodHook() {
             "getInstallerPackageName" -> {
                 hookGetInstallerPackageName(param)
             }
+            "getInstallSourceInfo" -> {
+                hookGetInstallSourceInfo(param)
+            }
             else -> {
             }
+        }
+    }
+
+    /**
+     * Old IPC channel (Android 8-11): PMS#getInstallerPackageName(String).
+     * On Android 12+ the method is gone and the client call is routed to
+     * getInstallSourceInfo() instead, so both must be hooked.
+     */
+    private fun hookInstallerQueryMethods(pms: Class<*>) {
+        try {
+            XposedHelpers.findAndHookMethod(
+                pms,
+                "getInstallerPackageName",
+                String::class.java,
+                this
+            )
+        } catch (e: Throwable) {
+            XLog.d("getInstallerPackageName(String) not found, skipping: ${e.message}")
+        }
+        try {
+            var hooked = false
+            for (method in pms.declaredMethods) {
+                if (method.name == "getInstallSourceInfo") {
+                    try {
+                        XposedBridge.hookMethod(method, this)
+                        hooked = true
+                    } catch (ignored: Throwable) {
+                    }
+                }
+            }
+            if (!hooked) {
+                XposedHelpers.findAndHookMethod(
+                    pms,
+                    "getInstallSourceInfo",
+                    String::class.java,
+                    Int::class.javaPrimitiveType,
+                    this
+                )
+            }
+        } catch (e: Throwable) {
+            XLog.d("getInstallSourceInfo hook failed: ${e.message}")
+        }
+    }
+
+    /**
+     * New IPC channel (Android 12+): PMS#getInstallSourceInfo(String, int).
+     * The client still calls PackageManager#getInstallerPackageName(cmd), which
+     * internally delegates to getInstallSourceInfo(cmd).getInstallingPackageName(),
+     * so we answer with a synthetic InstallSourceInfo carrying our payload in
+     * installingPackageName. Built via reflection to stay compatible with
+     * API 30-34 constructor variants and to avoid referencing the class
+     * (added in API 30) on older releases.
+     */
+    private fun hookGetInstallSourceInfo(param: MethodHookParam) {
+        val callingUid = Binder.getCallingUid()
+        if (callingUid != getPackageUid(BuildConfig.APPLICATION_ID) && callingUid != getPackageUid("com.android.settings")
+        ) {
+            return
+        }
+        val firstArg = param.args.firstOrNull()?.toString() ?: return
+        val payload = resolveServerPayload(firstArg) ?: return
+        val info = newInstallSourceInfo(payload) ?: return
+        param.result = info
+    }
+
+    /** Returns the payload for our internal commands, or null for real packages. */
+    private fun resolveServerPayload(firstArg: String): String? {
+        return when {
+            firstArg == QUERY_SERVER_VERSION -> BuildConfig.VERSION_CODE.toString()
+            firstArg == MIGRATE_OLD_CONFIG_FILE -> {
+                tryMigrateOldConfig()
+                ""
+            }
+            firstArg == QUERY_CONFIG -> queryConfig()
+            firstArg == REBOOT_THE_SYSTEM -> {
+                SystemProperties.set("sys.powerctl", "reboot")
+                ""
+            }
+            firstArg == GET_USERS -> {
+                val users = userInfoListCache
+                val systemUsers = mutableListOf<SystemUserInfo>()
+                users?.forEach { userInfo ->
+                    if (userInfo !is UserInfo) return
+                    val systemUserInfo = SystemUserInfo(
+                        id = userInfo.id,
+                        name = userInfo.name
+                    )
+                    systemUsers.add(systemUserInfo)
+                }
+                JsonHelper.systemUserInfoListAdapter().toJson(systemUsers)
+            }
+            firstArg.startsWith(UPDATE_CONFIG) -> {
+                val arg = firstArg.substring(UPDATE_CONFIG.length)
+                updateConfig(arg)
+                ""
+            }
+            firstArg.startsWith(FORCE_STOP) -> {
+                val arg = firstArg.substring(FORCE_STOP.length)
+                forceStopPackage(arg)
+            }
+            else -> null
+        }
+    }
+
+    private fun newInstallSourceInfo(installingPackageName: String): Any? {
+        return try {
+            val clazz = Class.forName("android.content.pm.InstallSourceInfo")
+            val signingInfoClazz = Class.forName("android.content.pm.SigningInfo")
+            val ctor = clazz.getDeclaredConstructor(
+                String::class.java,
+                signingInfoClazz,
+                String::class.java,
+                String::class.java
+            )
+            ctor.isAccessible = true
+            ctor.newInstance(null, null, null, installingPackageName)
+        } catch (e: Throwable) {
+            XLog.e(e, "Create InstallSourceInfo failed.")
+            null
         }
     }
 

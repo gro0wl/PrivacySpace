@@ -10,8 +10,6 @@ import cn.geektang.privacyspace.util.ConfigHelper.getPackageName
 import cn.geektang.privacyspace.util.XLog
 import cn.geektang.privacyspace.util.loadClassSafe
 import cn.geektang.privacyspace.util.tryLoadClass
-import com.android.internal.os.BatterySipper
-import com.android.internal.os.BatteryStatsHelper
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XposedBridge
 import de.robv.android.xposed.XposedHelpers
@@ -70,16 +68,22 @@ object SpecialAppsHookerImpl : XC_MethodHook(), Hooker {
 //            }
 //        )
 
-        XposedHelpers.findAndHookMethod(
-            BatteryStatsHelper::class.java,
-            "getUsageList",
-            this
-        )
-        XposedHelpers.findAndHookMethod(
-            BatteryStatsHelper::class.java,
-            "getMobilemsppList",
-            this
-        )
+        // BatteryStatsHelper is an internal class that may be absent/renamed on
+        // some ROMs (e.g. LineageOS 20 / Android 13) or invisible to the module
+        // classloader in certain processes. Resolve it via the target process
+        // classloader and skip silently when unavailable instead of crashing start().
+        classLoader.loadClassSafe("com.android.internal.os.BatteryStatsHelper")?.let { clazz ->
+            try {
+                XposedHelpers.findAndHookMethod(clazz, "getUsageList", this)
+            } catch (e: Throwable) {
+                XLog.d("hook BatteryStatsHelper.getUsageList failed: ${e.message}")
+            }
+            try {
+                XposedHelpers.findAndHookMethod(clazz, "getMobilemsppList", this)
+            } catch (e: Throwable) {
+                XLog.d("hook BatteryStatsHelper.getMobilemsppList failed: ${e.message}")
+            }
+        }
 
         XposedHelpers.findAndHookMethod(
             ActivityManager::class.java,
@@ -176,8 +180,15 @@ object SpecialAppsHookerImpl : XC_MethodHook(), Hooker {
                 val result = param.result as? MutableList<*> ?: return
                 val iterator = result.iterator()
                 while (iterator.hasNext()) {
-                    val batterySipper = (iterator.next() as? BatterySipper) ?: continue
-                    val packages = batterySipper.packages
+                    val batterySipper = iterator.next() ?: continue
+                    val packages = try {
+                        val field = batterySipper.javaClass.getDeclaredField("packages")
+                        field.isAccessible = true
+                        @Suppress("UNCHECKED_CAST")
+                        field.get(batterySipper) as? Array<String>
+                    } catch (e: Throwable) {
+                        null
+                    }
                     if (packages.isNullOrEmpty()) {
                         continue
                     }
